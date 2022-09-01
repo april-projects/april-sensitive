@@ -15,9 +15,6 @@
  */
 package com.mobaijun.sensitive;
 
-import lombok.Getter;
-import lombok.Setter;
-
 import java.time.LocalDateTime;
 
 /**
@@ -27,8 +24,6 @@ import java.time.LocalDateTime;
  *
  * @author MoBaiJun 2022/5/18 10:55
  */
-@Getter
-@Setter
 public class AppTest {
     @Mask(prefixNoMaskLen = 3, suffixNoMaskLen = 4)
     private String arced;
@@ -42,12 +37,49 @@ public class AppTest {
     @Mask(prefixNoMaskLen = 1, suffixNoMaskLen = 8, maskStr = "-")
     private String email;
 
+    public String getArced() {
+        return arced;
+    }
+
+    public void setArced(String arced) {
+        this.arced = arced;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getBirthday() {
+        return birthday;
+    }
+
+    public void setBirthday(String birthday) {
+        this.birthday = birthday;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
     @Override
     public String toString() {
         // 重写toString（）方法
         return new MaskToStringBuilder(this).toString();
     }
 
+    /**
+     * [arced=454*********5765,name=墨**,birthday=2022*************************,email=m--------@163.com]
+     *
+     * @param args 参数说明
+     */
     public static void main(String[] args) {
         AppTest testDemo = new AppTest();
         testDemo.setArced("4547665157465765");
