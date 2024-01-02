@@ -25,37 +25,35 @@ import java.util.Arrays;
 /**
  * software：IntelliJ IDEA 2022.1
  * class name: MaskToStringBuilder
- * class description： 打码
+ * class description：MaskToStringBuilder 用于处理输出对象的字符串表示形式，支持字段脱敏。
  *
  * @author MoBaiJun 2022/5/18 10:49
  */
 public class MaskToStringBuilder extends ReflectionToStringBuilder {
 
     /**
-     * his constructor outputs using the default style set with
+     * 默认构造函数，使用默认样式输出。
      *
-     * @param object object
+     * @param object 对象
      */
     public MaskToStringBuilder(Object object) {
         super(object);
     }
 
     /**
-     * If the style is <code>null</code>, the default style is used.
+     * 构造函数，允许设置输出样式。
      *
-     * @param object object
-     * @param style  style
+     * @param object 对象
+     * @param style  样式
      */
     public MaskToStringBuilder(Object object, ToStringStyle style) {
         super(object, style);
     }
 
     /**
-     * Appends the fields and values defined by the given object of the given Class.
-     * If a cycle is detected as an object is &quot;toString()'ed&quot;, such an object is rendered as if
-     * <code>Object.toString()</code> had been called and not implemented by the object.
+     * 将给定类的对象定义的字段及其值追加到字符串表示形式中。
      *
-     * @param clazz The class of object parameter
+     * @param clazz 对象的类
      */
     @SuppressWarnings("all")
     protected void appendFieldsIn(Class clazz) {
@@ -63,50 +61,79 @@ public class MaskToStringBuilder extends ReflectionToStringBuilder {
             this.reflectionAppendArray(this.getObject());
             return;
         }
+
         Field[] fields = clazz.getDeclaredFields();
         AccessibleObject.setAccessible(fields, true);
+
         Arrays.stream(fields)
-                .filter(field -> field.getName() != null)
+                .filter(field -> field.getName() != null && accept(field))
                 .forEach(field -> {
                     String fieldName = field.getName();
-                    if (this.accept(field)) {
-                        try {
-                            Object fieldValue = this.getValue(field);
-                            // 如果需要打码
-                            Mask anno = field.getAnnotation(Mask.class);
-                            if (anno != null) {
-                                if (field.getType() == String.class) {
-                                    String strFieldVal = (String) fieldValue;
-                                    int length = strFieldVal.length();
-                                    int totalNoMaskLen = anno.prefixNoMaskLen() + anno.suffixNoMaskLen();
-                                    if (totalNoMaskLen == 0) {
-                                        fieldValue = fillMask(anno.maskStr(), length);
-                                    }
-                                    if (totalNoMaskLen < length) {
-                                        StringBuilder sb = new StringBuilder();
-                                        for (int j = 0; j < strFieldVal.length(); j++) {
-                                            if (j < anno.prefixNoMaskLen()) {
-                                                sb.append(strFieldVal.charAt(j));
-                                                continue;
-                                            }
-                                            if (j > (strFieldVal.length() - anno.suffixNoMaskLen() - 1)) {
-                                                sb.append(strFieldVal.charAt(j));
-                                                continue;
-                                            }
-                                            sb.append(anno.maskStr());
-                                        }
-                                        fieldValue = sb.toString();
-                                    }
-                                }
-                            }
-                            this.append(fieldName, fieldValue);
-                        } catch (IllegalAccessException ex) {
-                            throw new InternalError("Unexpected IllegalAccessException: " + ex.getMessage());
+                    try {
+                        Object fieldValue = getValue(field);
+                        Mask anno = field.getAnnotation(Mask.class);
+
+                        if (anno != null && field.getType() == String.class) {
+                            fieldValue = applyMask((String) fieldValue, anno);
                         }
+
+                        append(fieldName, fieldValue);
+                    } catch (IllegalAccessException ex) {
+                        throw new InternalError("Unexpected IllegalAccessException: " + ex.getMessage());
                     }
                 });
     }
 
+    /**
+     * 应用脱敏规则到字符串字段。
+     *
+     * @param strFieldVal 字符串字段值
+     * @param anno        脱敏注解
+     * @return 脱敏后的字符串
+     */
+    private String applyMask(String strFieldVal, Mask anno) {
+        int length = strFieldVal.length();
+        int totalNoMaskLen = anno.prefixNoMaskLen() + anno.suffixNoMaskLen();
+
+        if (totalNoMaskLen == 0) {
+            return fillMask(anno.maskStr(), length);
+        }
+
+        if (totalNoMaskLen < length) {
+            return maskPartially(strFieldVal, anno);
+        }
+
+        return strFieldVal;
+    }
+
+    /**
+     * 部分脱敏，按照脱敏规则脱敏指定部分字符。
+     *
+     * @param strFieldVal 字符串字段值
+     * @param anno        脱敏注解
+     * @return 脱敏后的字符串
+     */
+    private String maskPartially(String strFieldVal, Mask anno) {
+        StringBuilder sb = new StringBuilder();
+
+        for (int j = 0; j < strFieldVal.length(); j++) {
+            if (j < anno.prefixNoMaskLen() || j > (strFieldVal.length() - anno.suffixNoMaskLen() - 1)) {
+                sb.append(strFieldVal.charAt(j));
+            } else {
+                sb.append(anno.maskStr());
+            }
+        }
+
+        return sb.toString();
+    }
+
+    /**
+     * 填充脱敏字符串，生成指定长度的脱敏字符。
+     *
+     * @param maskStr 脱敏字符
+     * @param length  字符串长度
+     * @return 脱敏后的字符串
+     */
     private String fillMask(String maskStr, int length) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < length; i++) {
